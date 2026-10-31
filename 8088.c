@@ -3588,8 +3588,6 @@ void doInstruction8088(P8088* p8088)
 		//xlat
 		case 0xd7:
 			result=p8088->AL;
-			if((p8088->AL&0x80)!=0)
-				result|=0xff00;
 			result+=(p8088->BH<<8)|p8088->BL;
 			result&=0xffff;
 			result=(result+(seg(p8088,p8088->DS)<<4))&0xfffff;

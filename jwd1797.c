@@ -2374,6 +2374,7 @@ void fD1797DebugOutput(JWD1797* jwd1797) {
 //OS patches
 void patchOS(char* diskFileArray,int size)
 {
+	if(size < 0xa363) return;
 	//check if Z-DOS v1.02 boot disk: look for EB 1C at 0, then 49 4F at 600 (IO.SYS), then 30 32 at 1490 (1.02)
 	if((diskFileArray[0]&0xff)==0xeb && (diskFileArray[1]&0xff)==0x1c && (diskFileArray[0x600]&0xff)==0x49 && (diskFileArray[0x601]&0xff)==0x4f && (diskFileArray[0x1490]&0xff)==0x30 && (diskFileArray[0x1491]&0xff)==0x32)
 	{
@@ -2410,13 +2411,5 @@ void patchOS(char* diskFileArray,int size)
 		diskFileArray[0x20ac]=0;
 	}
 
-	//search for ZBASIC code sequence:
-		//this occurs at 0724:AA69 in memory
-	unsigned char zbasic[16]={0x74,0x0c,0x5f,0x98,0x2b,0xf8,0x57,0x8b,0xd0,0xe8,0x22,0xec,0xeb,0xe8,0xbb,0x1c};
-	int zloc=substring(diskFileArray,size,zbasic,16);
-	if(zloc!=-1)
-	{
-		//patch 74(jz) to 75(jnz) to allow GOTOs to print out
-		diskFileArray[zloc]=0x75;
-	}
+
 }
