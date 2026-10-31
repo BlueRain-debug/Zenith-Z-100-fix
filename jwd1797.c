@@ -1594,14 +1594,19 @@ static int isCPMImage(const char* name) {
 	return length >= 4 && !strcmp(name + length - 4, ".cpm");
 }
 
-/* Zenith's loader table is not an IBM PC BPB. Validate its geometry before
-   allocating a track stream or consuming sector payloads. */
+/* Exact-sized raw 320 KiB media uses the Z-100's 40x2x8x512 layout.
+   Other sizes need a supported Zenith loader table. */
 static int diskGeometry(JWD1797* w, const unsigned char* data, int cpm) {
 	if(cpm) {
 		/* Preserve the custom CP/M port's existing raw-disk layout. */
 		w->num_heads = 1; w->sectors_per_track = 8;
 		w->sector_length = 512; w->cylinders = 60;
 		return w->disk_img_file_size >= 60 * 8 * 512;
+	}
+	if(w->disk_img_file_size == 40 * 2 * 8 * 512) {
+		w->cylinders = 40; w->num_heads = 2;
+		w->sectors_per_track = 8; w->sector_length = 512;
+		return 1;
 	}
 	unsigned int sectors = data[12] | (data[13] << 8);
 	unsigned int heads = (data[21] & 1) + 1;
