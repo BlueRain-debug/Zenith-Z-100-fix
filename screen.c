@@ -5,6 +5,7 @@
 #include <gtk/gtk.h>
 #include "screen.h"
 #include "mainboard.h"
+#include "log.h"
 
 // get access to external types define elsewhere
 // **DO WE NEED THESE?? SHOULD THEY NOT COME FROM THE MAINBOARD DEFINITIONS via
@@ -23,13 +24,36 @@ static volatile gint redrawPending;
 int screenParseOptions(int* argc, char*** argv)
 {
 	for(int i = 1; i < *argc; i++) {
+		int consumed = 0;
 		if(!strncmp((*argv)[i], "--pixels=", 9)) {
 			const char* value = (*argv)[i] + 9;
 			if(!strcmp(value, "1x1")) pixelHeight = 1;
 			else if(!strcmp(value, "1x2")) pixelHeight = 2;
 			else { fprintf(stderr, "Use --pixels=1x1 or --pixels=1x2\n"); return 0; }
-			for(int j = i; j < *argc; j++) (*argv)[j] = (*argv)[j + 1];
-			(*argc)--; i--;
+			consumed = 1;
+		}
+		else if(!strncmp((*argv)[i], "--log-level=", 12) || !strcmp((*argv)[i], "--log-level")) {
+			const char* value;
+			if(!strcmp((*argv)[i], "--log-level")) {
+				if(i + 1 >= *argc) {
+					fprintf(stderr, "--log-level requires quiet, error, warn, info, debug or trace\n");
+					return 0;
+				}
+				value = (*argv)[i + 1];
+				consumed = 2;
+			}
+			else { value = (*argv)[i] + 12; consumed = 1; }
+			Z100LogLevel level;
+			if(!z100_log_parse_level(value, &level)) {
+				fprintf(stderr, "Invalid log level '%s'; use quiet, error, warn, info, debug or trace\n", value);
+				return 0;
+			}
+			z100_log_set_level(level);
+		}
+		if(consumed) {
+			for(int j = i; j + consumed <= *argc; j++) (*argv)[j] = (*argv)[j + consumed];
+			*argc -= consumed;
+			i--;
 		}
 	}
 	return 1;
@@ -75,6 +99,29 @@ static void pixelModeChanged(GtkCheckMenuItem* item, gpointer height)
 	if(!gtk_check_menu_item_get_active(item)) return;
 	pixelHeight = GPOINTER_TO_INT(height);
 	resizePixelCanvas();
+}
+
+static void logLevelChanged(GtkCheckMenuItem* item, gpointer level)
+{
+	if(gtk_check_menu_item_get_active(item))
+		z100_log_set_level((Z100LogLevel)GPOINTER_TO_INT(level));
+}
+
+static GtkWidget* createLogMenu(void)
+{
+	GtkWidget* item = gtk_menu_item_new_with_label("Logging");
+	GtkWidget* menu = gtk_menu_new();
+	gtk_menu_item_set_submenu(GTK_MENU_ITEM(item), menu);
+	GSList* group = NULL;
+	const char* labels[] = {"Quiet", "Error", "Warning", "Info", "Debug", "Trace"};
+	for(int level = Z100_LOG_QUIET; level <= Z100_LOG_TRACE; level++) {
+		GtkWidget* choice = gtk_radio_menu_item_new_with_label(group, labels[level]);
+		group = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(choice));
+		gtk_menu_shell_append(GTK_MENU_SHELL(menu), choice);
+		gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(choice), z100_log_get_level() == (Z100LogLevel)level);
+		g_signal_connect(choice, "toggled", G_CALLBACK(logLevelChanged), GINT_TO_POINTER(level));
+	}
+	return item;
 }
 
 void windowactive()
@@ -227,6 +274,7 @@ void screenInit(int* argc, char** argv[])
 	GtkWidget* menu = gtk_menu_new();
 	gtk_menu_item_set_submenu(GTK_MENU_ITEM(view), menu);
 	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), view);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menuBar), createLogMenu());
 	GtkWidget* square = gtk_radio_menu_item_new_with_label(NULL, "Pixels 1x1 (point for point)");
 	GtkWidget* tall = gtk_radio_menu_item_new_with_label_from_widget(GTK_RADIO_MENU_ITEM(square), "Pixels 1x2 (double height)");
 	gtk_menu_shell_append(GTK_MENU_SHELL(menu), square);

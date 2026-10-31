@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "mainboard.h"
+#include "log.h"
 
 void push(P8088* p8088, unsigned value);
 unsigned int pop(P8088* p8088);
@@ -213,7 +214,7 @@ int enable_interrupt=1;
 
 void undefined_instruction(P8088* p8088, int opcode)
 {
-	printf("UNDEFINED INSTRUCTION %x\n",opcode);
+	LOG_ERROR("UNDEFINED INSTRUCTION %x\n",opcode);
 //	trap(p8088,6);
 	cycles+=50;
 }
@@ -4336,7 +4337,7 @@ void doInstruction8088(P8088* p8088)
 
 		default:
 			undefined_instruction(p8088,opcode);
-			printf("address CS=%x, IP=%x",p8088->CS,p8088->IP);
+			LOG_ERROR("address CS=%x, IP=%x",p8088->CS,p8088->IP);
 	}
 	p8088->operand1=value1;
 	p8088->operand2=value2;

@@ -28,6 +28,7 @@
 #include <signal.h>
 #include <gtk/gtk.h>
 #include "mainboard.h"
+#include "log.h"
 #include "screen.h"
 #include "name.h"
 #include "debug.h"
@@ -66,7 +67,7 @@ void initcpmdisks(Z100* c)
        FILE* cpmdisk=fopen(image_name_a,"rb");
         if(cpmdisk==NULL)
         {
-                printf("can't find %s\n",image_name_a);
+                LOG_ERROR("can't find %s\n",image_name_a);
                 return;
         }
         fseek(cpmdisk,0,SEEK_END);
@@ -270,7 +271,7 @@ exit(0);
 void z100mainloop(Z100* computer)
 {
 
-	printf("Start running processors\n\n");
+	LOG_INFO("Start running processors\n\n");
 
 	//run the processors forever
 	while(1)
@@ -427,7 +428,7 @@ void cascadeInterruptFunctionCall(void* v, int number, Z100* c)
 	{
 		return;
 	}
-	printf("SECONDARY 8259 PIC INT SIGNAL to MASTER 8259 PIC IRQ3\n");
+	LOG_TRACE("SECONDARY 8259 PIC INT SIGNAL to MASTER 8259 PIC IRQ3\n");
 	e8259_set_irq3(c->e8259_master, 1);
 }
 
@@ -443,11 +444,11 @@ void timer_out_0(void* v, int number, Z100* c)
 
 void timer_out_1(void* v, int number, Z100* c)
 {
-	printf("timer out 1\n");
+	LOG_TRACE("timer out 1\n");
 }
 void timer_out_2(void* v, int number, Z100* c)
 {
-	printf("timer out 2\n");
+	LOG_TRACE("timer out 2\n");
 	e8259_set_irq2(c->e8259_master, 1);
 }
 //
@@ -769,7 +770,7 @@ unsigned int z100_port_read(unsigned int address, Z100* c)
 			break;
 		//high-address latch implemented
 		case 0xfd:
-			printf("Reading from high address latch\n");
+			LOG_TRACE("Reading from high address latch\n");
 			exit(0);
 			break;
 
@@ -784,7 +785,7 @@ unsigned int z100_port_read(unsigned int address, Z100* c)
 			break;
 
 		default:
-			printf("READING FROM UNIMPLEMENTED PORT %X\n",address);
+			LOG_DEBUG("READING FROM UNIMPLEMENTED PORT %X\n",address);
 	  		return_value = 0x00;
 			break;
 	}
@@ -935,32 +936,32 @@ void z100_port_write(unsigned int address, unsigned char data, Z100* c)
 
 		// Video Commands - 68A21 parallel port
 		case 0xD8:
-printf("d8 write %x\n",data);
+LOG_TRACE("d8 write %x\n",data);
 			writeVideo(c->video, address, data&0xff);
 			break;
 		// Video Command Control - 68A21 parallel port
 		case 0xD9:
-printf("d9 write %x\n",data);
+LOG_TRACE("d9 write %x\n",data);
 			writeVideo(c->video, address, data&0xff);
 			break;
 		// Video RAM Mapping Module Data - 68A21 parallel port
 		case 0xDA:
-printf("da write %x\n",data);
+LOG_TRACE("da write %x\n",data);
 			writeVideo(c->video, address, data&0xff);
 			break;
 		// Video RAM Mapping Module Control - 68A21 parallel port
 		case 0xDB:
-printf("db write %x\n",data);
+LOG_TRACE("db write %x\n",data);
 			writeVideo(c->video, address, data&0xff);
 			break;
 		// CRT Controller 68A45 Register Select port 0xDC
 		case 0xDC:
-printf("dc write %x\n",data);
+LOG_TRACE("dc write %x\n",data);
 			writeVideo(c->video, address, data&0xff);
 			break;
 		// CRT Controller 68A45 Register Value port 0xDD
 		case 0xDD:
-printf("dd write %x\n",data);
+LOG_TRACE("dd write %x\n",data);
 			writeVideo(c->video, address, data&0xff);
 			break;
 		// parallel port (68A21 - Peripheral Interface Adapter (PIA))
@@ -1018,12 +1019,12 @@ printf("dd write %x\n",data);
 			break;
 		case 0xEB:
 			// Serial A (printer port)
-			printf("writing %X to Serial A printer port %X\n", data, address);
+			LOG_TRACE("writing %X to Serial A printer port %X\n", data, address);
 			c->serialloopback = data;
 			break;
 		case 0xEF:
 			// Serial B (modem port)
-			printf("writing %X to Serial B modem port %X\n", data, address);
+			LOG_TRACE("writing %X to Serial B modem port %X\n", data, address);
 			c->serialloopback = data;
 			break;
 		case 0xFB:
@@ -1065,8 +1066,8 @@ printf("dd write %x\n",data);
 			// memory control port bit 5 = 0)
 			if(!tokillparity && c->killParity)
 			{
-				printf("CLEAR PARITY ERROR\n");
-				printf("CS = %X IP = %X\n", c->p8088->CS, c->p8088->IP);
+				LOG_TRACE("CLEAR PARITY ERROR\n");
+				LOG_TRACE("CS = %X IP = %X\n", c->p8088->CS, c->p8088->IP);
 				e8259_set_irq0(c->e8259_master, 0);
 			}
 			c->killParity = tokillparity;
@@ -1093,13 +1094,13 @@ printf("dd write %x\n",data);
 			break;
 		//high-address latch implemented
 		case 0xfd:
-			printf("Writing to high address latch %x\n",data);
+			LOG_TRACE("Writing to high address latch %x\n",data);
 			exit(0);
 			break;
 		// processor switch port FE
 		case 0xFE:
 			c->processor_swap_port_FE = data;
-			printf("Value %X written to processor_swap_port_FE port at address %X\n",data, address);
+			LOG_TRACE("Value %X written to processor_swap_port_FE port at address %X\n",data, address);
 			// select proper processor based on 7th bit in port data
 			// if the 7th bit is 1, select 8088 processor
 			if(((c->processor_swap_port_FE >> 7) & 0x01) == 0x01)
@@ -1128,11 +1129,11 @@ printf("dd write %x\n",data);
 		// S101 DIP Switch - (Page 2.8 in Z100 technical manual for pin defs)
 		// NOTE: since this is a PHYSICAL DIP switch - this case should never be called
 		case 0xFF:
-			printf("ERROR: CAN NOT WRITE to DIP_switch_s101_FF port at address %X\n",address);
+			LOG_WARN("ERROR: CAN NOT WRITE to DIP_switch_s101_FF port at address %X\n",address);
 			break;
 		// unimplemented port
 		default:
-			printf("WRITING %X TO UNIMPLEMENTED PORT %X\n", data, address);
+			LOG_DEBUG("WRITING %X TO UNIMPLEMENTED PORT %X\n", data, address);
 			break;
 	}
 	bp_out_check(address);
@@ -1151,7 +1152,7 @@ void loadrom(Z100* c, char* fname)
 	FILE* f = fopen(fname,"rb");
 	if(f==NULL)
 	{
-		printf("Can't find BIOS ROM image %s\n",fname);
+		LOG_ERROR("Can't find BIOS ROM image %s\n",fname);
 		exit(0);
 	}
 	for(int i = 0; i < ROM_SIZE; i++) 
@@ -1295,7 +1296,7 @@ int main(int argc, char* argv[]) {
 	if(argc>1)
 	{
 		image_name_a=argv[1];
-		printf("%s\n",image_name_a);
+		LOG_INFO("%s\n",image_name_a);
 		if(argc>2)
 			image_name_b=argv[2];
 	}
@@ -1305,7 +1306,7 @@ int main(int argc, char* argv[]) {
 	//contributed by porkypiggy64: this enables ctrl-c to pause the simulation
 	signal(SIGINT, onCtrlC);
 
-	printf("\n\n%s\n\n",
+	LOG_INFO("\n\n%s\n\n",
 		" ===========================================\n"
 		" |\tZENITH Z-100 EMULATOR\t\t   |\n"
 		" |\tby: Margaret Black, Joe Matta\t   |\n"

@@ -1,24 +1,26 @@
-z100 : mainboard.o 8085.o 8088.o e8259.o e8253.o jwd1797.o keyboard.o video.o screen.o debug.o
-	gcc -std=gnu17 -pthread -o z100 mainboard.o 8085.o 8088.o e8259.o e8253.o jwd1797.o keyboard.o video.o screen.o debug.o `pkg-config --cflags --libs gtk+-3.0`
-mainboard.o : mainboard.c mainboard.h 8085.h 8088.h e8259.h e8253.h jwd1797.h keyboard.h video.h screen.h
+z100 : mainboard.o 8085.o 8088.o e8259.o e8253.o jwd1797.o keyboard.o video.o screen.o debug.o log.o
+	gcc -std=gnu17 -pthread -o z100 mainboard.o 8085.o 8088.o e8259.o e8253.o jwd1797.o keyboard.o video.o screen.o debug.o log.o `pkg-config --cflags --libs gtk+-3.0`
+mainboard.o : mainboard.c mainboard.h 8085.h 8088.h e8259.h e8253.h jwd1797.h keyboard.h video.h screen.h log.h
 	gcc -std=gnu17 -c mainboard.c `pkg-config --cflags --libs gtk+-3.0`
 8085.o : 8085.c 8085.h mainboard.h
 	gcc -std=gnu17 -c 8085.c
-8088.o : 8088.c 8088.h mainboard.h
+8088.o : 8088.c 8088.h mainboard.h log.h
 	gcc -std=gnu17 -c 8088.c
-e8259.o : e8259.c e8259.h
+e8259.o : e8259.c e8259.h log.h
 	gcc -std=gnu17 -c e8259.c
 e8253.o : e8253.c e8253.h
 	gcc -std=gnu17 -c e8253.c
-jwd1797.o : jwd1797.c jwd1797.h e8259.h name.h
+jwd1797.o : jwd1797.c jwd1797.h e8259.h name.h log.h
 	gcc -std=gnu17 -c jwd1797.c
-keyboard.o : keyboard.c keyboard.h
+keyboard.o : keyboard.c keyboard.h log.h
 	gcc -std=gnu17 -c keyboard.c
 video.o : video.c video.h
 	gcc -std=gnu17 -c video.c
-screen.o : screen.c video.h screen.h keyboard.h mainboard.h
+screen.o : screen.c video.h screen.h keyboard.h mainboard.h log.h
 	gcc -std=gnu17 -c screen.c `pkg-config --cflags --libs gtk+-3.0`
 debug.o : debug.c debug.h
 	gcc -std=gnu17 -c debug.c
+log.o : log.c log.h
+	gcc -std=gnu17 -pthread -c log.c
 clean :
-	rm -f z100 z100.exe mainboard.o 8085.o 8088.o e8259.o e8253.o jwd1797.o keyboard.o video.o screen.o debug.o
+	rm -f z100 z100.exe mainboard.o 8085.o 8088.o e8259.o e8253.o jwd1797.o keyboard.o video.o screen.o debug.o log.o

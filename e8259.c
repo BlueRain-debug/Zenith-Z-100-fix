@@ -30,6 +30,7 @@
 #include <stdio.h>
 
 #include "mainboard.h"
+#include "log.h"
 
 void e8259_init (e8259_t *pic, char* lbl)
 {
@@ -322,7 +323,7 @@ unsigned char e8259_inta (e8259_t *master_pic, e8259_t *secondary_pic)
 	// the highest interrupt should not be 16 or over
 	if (irrp >= 16) {
 		/* should not happen */
-		fprintf (stderr, "e8259: INTA without IRQ\n");
+		LOG_WARN("e8259: INTA without IRQ\n");
 		return (master_pic->base + 7);
 	}
 
@@ -354,9 +355,9 @@ unsigned char e8259_inta (e8259_t *master_pic, e8259_t *secondary_pic)
 	if (irrp == 3 && (master_pic->label == "MASTER")) {
 		// recursive call and return the interrupt vector from the secondary PIC
 		// pass the secondary PIC as the master and return its vector
-		printf("Interrupt signal from SECONDARY 8259 PIC on MASTER IRQ3\n");
+		LOG_TRACE("Interrupt signal from SECONDARY 8259 PIC on MASTER IRQ3\n");
 		unsigned char sec_int_vector = e8259_inta(secondary_pic, NULL);
-		printf("sent interrupt vector %d into data bus\n", sec_int_vector);
+		LOG_TRACE("sent interrupt vector %d into data bus\n", sec_int_vector);
 		return sec_int_vector;
 	}
 	// otherwise, return the master PIC vector interrupt
@@ -530,12 +531,12 @@ void e8259_set_ocw3 (e8259_t *pic, unsigned char val)
 	}
 
 	if (val & E8259_OCW3_P) {
-		fprintf (stderr, "e8259: poll command\n");
+		LOG_DEBUG("e8259: poll command\n");
 	}
 
 	if (val & E8259_OCW3_ESMM) {
 		if (val & E8259_OCW3_SMM) {
-			fprintf (stderr, "e8259: special mask mode enabled\n");
+			LOG_DEBUG("e8259: special mask mode enabled\n");
 		}
 	}
 }

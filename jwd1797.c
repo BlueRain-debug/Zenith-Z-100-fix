@@ -36,6 +36,7 @@
 //#include "e8259.h"
 //#include "jwd1797.h"
 #include "mainboard.h"
+#include "log.h"
 #include "name.h"
 
 /* TIMINGS (microseconds) */
@@ -315,7 +316,7 @@ unsigned int readJWD1797(JWD1797* jwd_controller, unsigned int port_addr) {
 			break;
 		// control latch reg port (write)
 		case 0xb4:
-			printf(" ** WARNING: Reading from WD1797 control latch port 0xB4 (write only)!\n");
+			LOG_WARN(" ** WARNING: Reading from WD1797 control latch port 0xB4 (write only)!\n");
 			r_val = jwd_controller->controlLatch;
 			break;
 		// controller status port (read)
@@ -324,7 +325,7 @@ unsigned int readJWD1797(JWD1797* jwd_controller, unsigned int port_addr) {
 			r_val = jwd_controller->controlStatus;
 			break;
 		default:
-			printf("%X is an invalid port!\n", port_addr);
+			LOG_WARN("%X is an invalid port!\n", port_addr);
 	}
 	return r_val;
 }
@@ -370,7 +371,7 @@ void writeJWD1797(JWD1797* jwd_controller, unsigned int port_addr, unsigned int 
 //printf("\t%s %d\n",jwd_controller->currentCommandName,jwd_controller->drq);
 				if(jwd_controller->bytesToWrite>=jwd_controller->sector_length)
 //if(jwd_controller->bytesToWrite>=512)
-					printf("MJB: OVERFLOW ERROR %d\n",jwd_controller->bytesToWrite);
+					LOG_ERROR("MJB: OVERFLOW ERROR %d\n",jwd_controller->bytesToWrite);
 				else
 					jwd_controller->sectorToWrite[jwd_controller->bytesToWrite++]=value;
 			}
@@ -385,7 +386,7 @@ void writeJWD1797(JWD1797* jwd_controller, unsigned int port_addr, unsigned int 
 			break;
 		// control latch port
 		case 0xb4:
-			printf("Writing to WD1797 control port 0xB4 (ONLY wait_enabled option)\n");
+			LOG_TRACE("Writing to WD1797 control port 0xB4 (ONLY wait_enabled option)\n");
 			{
 				int old_drive = jwd_controller->controlLatch & 0x3;
 				int new_drive = value & 0x3;
@@ -405,15 +406,15 @@ void writeJWD1797(JWD1797* jwd_controller, unsigned int port_addr, unsigned int 
 			// set wait enabled option according to bit 6
 			jwd_controller->wait_enabled = (jwd_controller->controlLatch >> 6) & 1;
 			if(jwd_controller->wait_enabled) {
-				printf("%s\n", "** FD-1797 Wait Enabled **");
+				LOG_TRACE("%s\n", "** FD-1797 Wait Enabled **");
 			}
 			break;
 		// controller status port
 		case 0xb5:
-			printf(" ** WARNING: Writing to WD1797 status port 0xB5 (read only)!\n");
+			LOG_WARN(" ** WARNING: Writing to WD1797 status port 0xB5 (read only)!\n");
 			break;
 		default:
-			printf("%X is an invalid port!\n", port_addr);
+			LOG_WARN("%X is an invalid port!\n", port_addr);
 	}
 }
 
@@ -512,7 +513,7 @@ void doJWD1797Cycle(JWD1797* w, double us) {
 	/* is it the start of a new track (rising edge of IP? = track_start_signal_)
 		-- with a IP forced interrupt? */
 	if(w->track_start_signal_ && w->interruptIndexPulse) {
-		printf("%s\n", "IP interrupt condition met..");
+		LOG_DEBUG("%s\n", "IP interrupt condition met..");
 		// is there a command currently running?
 		if(!w->command_done) {	// YES
 			// terminate command
@@ -593,7 +594,7 @@ void doJWD1797Command(JWD1797* w) {
 		 **NOTE: TYPE II commands assume that the target sector has been previously
 		 loaded into the sector register */
 	else if(((w->commandRegister>>5) & 7) < 6) {
-		printf("TYPE II Command in WD1797 command register..\n");
+		LOG_DEBUG("TYPE II Command in WD1797 command register..\n");
 		setupTypeIICommand(w);
 		setTypeIICommand(w);
 
@@ -603,13 +604,13 @@ void doJWD1797Command(JWD1797* w) {
 		 by checking the highest 3 bits. TYPE III commands have a higher value
 		 then 5 in their shifted 3 high bits */
 	else if(((w->commandRegister>>5) & 7) > 5) {
-		printf("TYPE III Command in WD1797 command register..\n");
+		LOG_DEBUG("TYPE III Command in WD1797 command register..\n");
 		setupTypeIIICommand(w);
 		setTypeIIICommand(w);
 	}
 	// check command register error
 	else {
-		printf("%s\n", "Something went wrong! BAD COMMAND BITS in COMMAND REG!");
+		LOG_ERROR("%s\n", "Something went wrong! BAD COMMAND BITS in COMMAND REG!");
 	}
 }
 
@@ -628,7 +629,7 @@ void commandStep(JWD1797* w, double us) {
 				if(!w->not_track00_pin) {	// indicates r/w head is over track 00
 					w->trackRegister = 0;
 					w->command_action_done = 1;	// indicate end of command action
-					printf("%s\n", "RESTORED HEAD TO TRACK 00 - command action DONE");
+					LOG_DEBUG("%s\n", "RESTORED HEAD TO TRACK 00 - command action DONE");
 					return;
 				}
 				// not at track 00 - increment step timer
@@ -655,7 +656,7 @@ void commandStep(JWD1797* w, double us) {
 					the data register contains the target track) */
 				if(w->trackRegister == w->dataRegister) {	// SEEK found the target track
 					w->command_action_done = 1;	// indicate end of command action
-					printf("%s\n", "SEEK found target track - command action DONE");
+					LOG_DEBUG("%s\n", "SEEK found target track - command action DONE");
 					return;
 				}
 				else if(w->trackRegister > w->dataRegister) {	// must step out
@@ -697,13 +698,13 @@ void commandStep(JWD1797* w, double us) {
 					// update track register to 0 regardless of track update flag
 					w->trackRegister = 0;
 					w->command_action_done = 1;	// indicate end of command action
-					printf("\n%s\n\n", "STEP - command action DONE (tried to step to track -1)");
+					LOG_DEBUG("\n%s\n\n", "STEP - command action DONE (tried to step to track -1)");
 					return;
 				}
 				// check if step would put head past the number of tracks on the disk
 				else if((w->current_track == (w->cylinders - 1)) && w->direction_pin == 1) {
 					w->command_action_done = 1;
-					printf("\n%s\n\n", "STEP - command action DONE (tried to step past track limit)");
+					LOG_DEBUG("\n%s\n\n", "STEP - command action DONE (tried to step past track limit)");
 					return;
 				}
 				else {
@@ -726,7 +727,7 @@ void commandStep(JWD1797* w, double us) {
 						// reset step timer
 						w->step_timer = 0.0;
 						w->command_action_done = 1;	// indicate end of command action
-						printf("%s\n", "STEP - command action DONE");
+						LOG_DEBUG("%s\n", "STEP - command action DONE");
 						return;
 					}
 				}
@@ -735,7 +736,7 @@ void commandStep(JWD1797* w, double us) {
 			else if(w->currentCommandName == "STEP-IN") {
 				if((w->current_track == (w->cylinders - 1))) {
 					w->command_action_done = 1;
-					printf("\n%s\n\n", "STEP-IN - command action DONE (tried to step past track limit)");
+					LOG_DEBUG("\n%s\n\n", "STEP-IN - command action DONE (tried to step past track limit)");
 					return;
 				}
 				w->step_timer += us;
@@ -751,7 +752,7 @@ void commandStep(JWD1797* w, double us) {
 					// reset step timer
 					w->step_timer = 0.0;
 					w->command_action_done = 1;	// indicate end of command action
-					printf("%s\n", "STEP-IN - command action DONE");
+					LOG_DEBUG("%s\n", "STEP-IN - command action DONE");
 					return;
 				}
 			}
@@ -761,7 +762,7 @@ void commandStep(JWD1797* w, double us) {
 					// update track register to 0 regardless of track update flag
 					w->trackRegister = 0;
 					w->command_action_done = 1;	// indicate end of command action
-					printf("\n%s\n\n", "STEP-OUT - command action DONE (tried to step to track -1)");
+					LOG_DEBUG("\n%s\n\n", "STEP-OUT - command action DONE (tried to step to track -1)");
 					if((w->controlLatch&0x3)<=1) stepclick();
 					return;
 				}
@@ -780,7 +781,7 @@ void commandStep(JWD1797* w, double us) {
 						// reset step timer
 						w->step_timer = 0.0;
 						w->command_action_done = 1;	// indicate end of command action
-						printf("%s\n", "STEP - command action DONE");
+						LOG_DEBUG("%s\n", "STEP - command action DONE");
 						return;
 					}
 				}
@@ -815,7 +816,7 @@ void commandStep(JWD1797* w, double us) {
 				// generate interrupt
 				w->intrq = 1;
 				e8259_set_irq0 (w->pic, 1);
-				printf("%s\n", "command type I complete");
+				LOG_DEBUG("%s\n", "command type I complete");
 				return;
 			}
 
@@ -867,7 +868,7 @@ void commandStep(JWD1797* w, double us) {
 					else {w->statusRegister &= 0b11111011;}
 					// read current byte into data register
 					w->dataRegister = getFDiskByte(w);
-					printf("%X ", w->dataRegister);
+					LOG_TRACE("%X ", w->dataRegister);
 					// set drq and status drq status bit
 					w->drq = 1;
 					w->statusRegister |= 0b00000010;
@@ -913,17 +914,17 @@ void commandStep(JWD1797* w, double us) {
 					w->all_bytes_inputted = 0;
 					return;
 				}
-				printf("%s\n", "ERROR: SOMETHING WENT WRONG WITH READING MULTIPLE SECTORS");
+				LOG_ERROR("%s\n", "ERROR: SOMETHING WENT WRONG WITH READING MULTIPLE SECTORS");
 				return;
 			}
 			if((w->controlLatch&0x3)==0)
 			{
-				printf("DRIVE LIGHT A OFF\n");
+				LOG_TRACE("DRIVE LIGHT A OFF\n");
 				setLED(LED_DRIVE_A,0);
 			}
 			else if((w->controlLatch&0x3)==1)
 			{
-				printf("DRIVE LIGHT B OFF\n");
+				LOG_TRACE("DRIVE LIGHT B OFF\n");
 				setLED(LED_DRIVE_B,0);
 			}
 			// command is done
@@ -938,19 +939,19 @@ void commandStep(JWD1797* w, double us) {
 
 		// WRITE SECTOR (*** NOT IMPLEMENTED - command completes without executing ***)
 		else if(w->currentCommandName == "WRITE SECTOR") {
-			printf("%s\n", "@@ ** WD-1797 WRITE SECTOR NOT IMPLEMENTED! ** @@");
+			LOG_DEBUG("%s\n", "WD1797 write sector");
 
-					printf("WRITE-DATA %X ", w->dataRegister);
+					LOG_TRACE("WRITE-DATA %X ", w->dataRegister);
 			writeSector(w);
 			printAllRegisters(w);
 			if((w->controlLatch&0x3)==0)
 			{
-				printf("DRIVE LIGHT A OFF\n");
+				LOG_TRACE("DRIVE LIGHT A OFF\n");
 				setLED(LED_DRIVE_A,0);
 			}
 			else if((w->controlLatch&0x3)==1)
 			{
-				printf("DRIVE LIGHT B OFF\n");
+				LOG_TRACE("DRIVE LIGHT B OFF\n");
 				setLED(LED_DRIVE_B,0);
 			}
 
@@ -1070,9 +1071,9 @@ void commandStep(JWD1797* w, double us) {
 		}
 
 		else if(w->currentCommandName == "WRITE TRACK") {
-			printf("%s\n", "@@ ** WD-1797 WRITE TRACK NOT IMPLEMENTED! ** @@");
+			LOG_WARN("%s\n", "@@ ** WD-1797 WRITE TRACK NOT IMPLEMENTED! ** @@");
 
-					printf("WRITE-TRACK %X ", w->dataRegister);
+					LOG_TRACE("WRITE-TRACK %X ", w->dataRegister);
 
 			// command is done
 			w->command_done = 1;
@@ -1177,7 +1178,7 @@ void setupTypeIICommand(JWD1797* w) {
 
 	// sample READY input from DRIVE
 	if(!w->ready_pin) {
-		printf("\n%s\n\n", "DRIVE NOT READY! Command cancelled");
+		LOG_DEBUG("\n%s\n\n", "DRIVE NOT READY! Command cancelled");
 		w->command_done = 1;
 		w->statusRegister &= 0b11111110;	// reset (clear) busy status bit
 		// ** generate interrupt **
@@ -1222,7 +1223,7 @@ void setupTypeIIICommand(JWD1797* w) {
 
 	// sample READY input from DRIVE
 	if(!w->ready_pin) {
-		printf("\n%s\n\n", "DRIVE NOT READY! Command cancelled");
+		LOG_DEBUG("\n%s\n\n", "DRIVE NOT READY! Command cancelled");
 		w->command_done = 1;
 		w->statusRegister &= 0b11111110;	// reset (clear) busy status bit
 		// ** generate interrupt **
@@ -1255,7 +1256,7 @@ void setupForcedIntCommand(JWD1797* w) {
 	// w->interruptIndexPulse = 0;
 	// w->interruptImmediate = 0;
 	// %%%%%%% DEBUG ABOVE ^^^^
-	printf("TYPE IV Command in WD1797 command register (Force Interrupt)..\n");
+	LOG_DEBUG("TYPE IV Command in WD1797 command register (Force Interrupt)..\n");
 	// w->currentCommandType = 4;
 	// w->currentCommandName = "FORCED INTR";
 	/* get the interrupt condition bits (I0-I3) -
@@ -1263,23 +1264,23 @@ void setupForcedIntCommand(JWD1797* w) {
 	unsigned char int_condition_bits = w->commandRegister & 0b00001111;
 	// set interrupt condition(s)
 	if(int_condition_bits & 1) {
-		printf("%s\n", "INTRQ on NOT READY to READY transition");
+		LOG_DEBUG("%s\n", "INTRQ on NOT READY to READY transition");
 		w->interruptNRtoR = 1;
 	}
 	if((int_condition_bits>>1) & 1) {
-		printf("%s\n", "INTRQ on READY to NOT READY transition");
+		LOG_DEBUG("%s\n", "INTRQ on READY to NOT READY transition");
 		w->interruptRtoNR = 1;
 	}
 	if((int_condition_bits>>2) & 1) {
-		printf("%s\n", "INTRQ on INDEX PULSE");
+		LOG_DEBUG("%s\n", "INTRQ on INDEX PULSE");
 		w->interruptIndexPulse = 1;
 	}
 	if((int_condition_bits>>3) & 1) {
-		printf("%s\n", "INTRQ and IMMEDIATE INTERRUPT");
+		LOG_DEBUG("%s\n", "INTRQ and IMMEDIATE INTERRUPT");
 		w->interruptImmediate = 1;
 	}
 	if(int_condition_bits == 0) {
-		printf("%s\n", "NO INTRQ and TERMINATE COMMAND IMMEDIATELY");
+		LOG_DEBUG("%s\n", "NO INTRQ and TERMINATE COMMAND IMMEDIATELY");
 		w->terminate_command = 1;
 	}
 }
@@ -1291,17 +1292,17 @@ void setTypeICommand(JWD1797* w) {
 	if(highBits < 2) { // RESTORE or SEEK command
 		if((highBits&1) == 0) {	// RESTORE command
 			w->currentCommandName = "RESTORE";
-			printf("%s command in WD1797 command register\n", w->currentCommandName);
+			LOG_DEBUG("%s command in WD1797 command register\n", w->currentCommandName);
 		}
 		else if((highBits&1) == 1) {	// SEEK command
 			w->currentCommandName = "SEEK";
-			printf("%s command in WD1797 command register\n", w->currentCommandName);
+			LOG_DEBUG("%s command in WD1797 command register\n", w->currentCommandName);
 			// update Track Register with current track
 			w->trackRegister = w->current_track;
 		}
 		// check error
 		else {
-			printf("%s\n", "Something went wrong! Cannot determine RESTORE or SEEK!");
+			LOG_ERROR("%s\n", "Something went wrong! Cannot determine RESTORE or SEEK!");
 		}
 	}
 	else { // STEP, STEP-IN or STEP-OUT commands
@@ -1311,21 +1312,21 @@ void setTypeICommand(JWD1797* w) {
 		int cmdID = (w->commandRegister>>5) & 7;
 		if(cmdID == 1) {	// STEP
 			w->currentCommandName = "STEP";
-			printf("%s command in WD1797 command register\n", w->currentCommandName);
+			LOG_DEBUG("%s command in WD1797 command register\n", w->currentCommandName);
 		}
 		else if(cmdID == 2) {	//STEP-IN
 			w->currentCommandName = "STEP-IN";
 			w->direction_pin = 1;
-			printf("%s command in WD1797 command register\n", w->currentCommandName);
+			LOG_DEBUG("%s command in WD1797 command register\n", w->currentCommandName);
 		}
 		else if(cmdID == 3)  {	// STEP-OUT
 			w->currentCommandName = "STEP-OUT";
 			w->direction_pin = 0;
-			printf("%s command in WD1797 command register\n", w->currentCommandName);
+			LOG_DEBUG("%s command in WD1797 command register\n", w->currentCommandName);
 		}
 		// check error
 		else {
-			printf("%s\n", "Something went wrong! Cannot determine which TYPE I STEP command!");
+			LOG_ERROR("%s\n", "Something went wrong! Cannot determine which TYPE I STEP command!");
 		}
 	}
 }
@@ -1348,31 +1349,31 @@ void setTypeIICommand(JWD1797* w) {
 	if(cmdID == 4) {
 
 		w->currentCommandName = "READ SECTOR";
-		printf("%s command in WD1797 command register\n", w->currentCommandName);
+		LOG_DEBUG("%s command in WD1797 command register\n", w->currentCommandName);
 
 		if((w->controlLatch&0x3)==0)
 		{
-			printf("DRIVE LIGHT A ON\n");
+			LOG_TRACE("DRIVE LIGHT A ON\n");
 			setLED(LED_DRIVE_A,1);
 		}
 		else if((w->controlLatch&0x3)==1)
 		{
-			printf("DRIVE LIGHT B ON\n");
+			LOG_TRACE("DRIVE LIGHT B ON\n");
 			setLED(LED_DRIVE_B,1);
 		}
 	}
 	else if(cmdID == 5) {
 		w->currentCommandName = "WRITE SECTOR";
 		
-		printf("%s command in WD1797 command register\n", w->currentCommandName);
+		LOG_DEBUG("%s command in WD1797 command register\n", w->currentCommandName);
 		if((w->controlLatch&0x3)==0)
 		{
-			printf("DRIVE LIGHT A ON\n");
+			LOG_TRACE("DRIVE LIGHT A ON\n");
 			setLED(LED_DRIVE_A,1);
 		}
 		else if((w->controlLatch&0x3)==1)
 		{
-			printf("DRIVE LIGHT B ON\n");
+			LOG_TRACE("DRIVE LIGHT B ON\n");
 			setLED(LED_DRIVE_B,1);
 		}
 		// set Data Address Mark flag
@@ -1380,7 +1381,7 @@ void setTypeIICommand(JWD1797* w) {
 	}
 	// check error
 	else {
-		printf("%s\n", "Something went wrong! Cannot determine which TYPE II command!");
+		LOG_ERROR("%s\n", "Something went wrong! Cannot determine which TYPE II command!");
 	}
 }
 
@@ -1390,13 +1391,13 @@ void setTypeIIICommand(JWD1797* w) {
 	// READ ADDRESS
 	if(cmdID == 12) {
 		w->currentCommandName = "READ ADDRESS";
-		printf("%s command in WD1797 command register\n", w->currentCommandName);
+		LOG_DEBUG("%s command in WD1797 command register\n", w->currentCommandName);
 		w->IDAM_byte_count = 0;	// count to collect IDAM bytes
 	}
 	// READ TRACK
 	else if(cmdID == 14) {
 		w->currentCommandName = "READ TRACK";
-		printf("%s command in WD1797 command register\n", w->currentCommandName);
+		LOG_DEBUG("%s command in WD1797 command register\n", w->currentCommandName);
 		w->start_track_read_ = 0;
 		w->read_track_bytes_read = 0;
 		if((w->controlLatch&0x3)==0)
@@ -1407,11 +1408,11 @@ void setTypeIIICommand(JWD1797* w) {
 	// WRITE TRACK
 	else if(cmdID == 15) {
 		w->currentCommandName = "WRITE TRACK";
-		printf("%s command in WD1797 command register\n", w->currentCommandName);
+		LOG_DEBUG("%s command in WD1797 command register\n", w->currentCommandName);
 	}
 	// check error
 	else {
-		printf("%s\n", "Something went wrong! Cannot determine which TYPE III command!");
+		LOG_ERROR("%s\n", "Something went wrong! Cannot determine which TYPE III command!");
 	}
 }
 
@@ -1426,8 +1427,8 @@ void typeIStatusReset(JWD1797* w) {
 }
 
 void printBusyMsg() {
-	printf("%s\n", "Cannot execute command placed into command register!");
-	printf("%s\n", "Another command is currently processing! (BUSY STATUS)");
+	LOG_DEBUG("%s\n", "Cannot execute command placed into command register!");
+	LOG_DEBUG("%s\n", "Another command is currently processing! (BUSY STATUS)");
 }
 
 void updateTG43Signal(JWD1797* w) {
@@ -1463,49 +1464,16 @@ void computeCRC(int initialValue, int* bytes, int len, int* result) {
 }
 
 void printAllRegisters(JWD1797* w) {
-	printf("\n%s\n", "WD1797 Registers:");
-	printf("%s", "Status: ");
-	print_bin8_representation(w->statusRegister);
-	printf("\n%s", "Command: ");
-	print_bin8_representation(w->commandRegister);
-	printf("\n%s", "Sector: ");
-	print_bin8_representation(w->sectorRegister);
-	printf("\n%s", "Track: ");
-	print_bin8_representation(w->trackRegister);
-	printf("\n%s", "Data: ");
-	print_bin8_representation(w->dataRegister);
-	printf("\n%s", "DataShift: ");
-	print_bin8_representation(w->dataShiftRegister);
-	printf("\n%s", "CRC: ");
-	print_bin8_representation(w->CRCRegister);
+	LOG_DEBUG("WD1797 registers: status=%02X command=%02X sector=%02X track=%02X data=%02X shift=%02X CRC=%02X",
+		w->statusRegister, w->commandRegister, w->sectorRegister, w->trackRegister,
+		w->dataRegister, w->dataShiftRegister, w->CRCRegister);
 }
 
 void printCommandFlags(JWD1797* w) {
-	if(w->currentCommandType == 1) {
-		printf("%s\n", "-- TYPE I COMMAND FLAGS --");
-		printf("%s%d\n", "StepRate: ", w->stepRate);
-		printf("%s%d\n", "Verify: ", w->verifyFlag);
-		printf("%s%d\n", "HeadLoad: ", w->headLoadFlag);
-		printf("%s%d\n", "TrackUpdate: ", w->trackUpdateFlag);
-	}
-	else if(w->currentCommandType == 2 || w->currentCommandType == 3) {
-		printf("%s\n", "-- TYPE II/III COMMAND FLAGS --");
-		printf("%s%d\n", "DataAddressMark: ", w->dataAddressMark);
-		printf("%s%d\n", "UpdateSSO: ", w->updateSSO);
-		printf("%s%d\n", "Delay15ms: ", w->delay15ms);
-		printf("%s%d\n", "SwapSectorLength: ", w->swapSectorLength);
-		printf("%s%d\n", "MultipleRecords: ", w->multipleRecords);
-	}
-	else if(w->currentCommandType == 4) {
-		printf("%s\n", "-- TYPE IV COMMAND FLAGS/INTERRUPT CONDITIONS --");
-		printf("%s%d\n", "InterruptNRtoR: ", w->interruptNRtoR);
-		printf("%s%d\n", "InterruptRtoNR: ", w->interruptRtoNR);
-		printf("%s%d\n", "InterruptIndexPulse: ", w->interruptIndexPulse);
-		printf("%s%d\n", "InterruptImmediate: ", w->interruptImmediate);
-	}
-	else {
-		printf("%s\n", "INVALID COMMAND TYPE!");
-	}
+	LOG_DEBUG("WD1797 command type=%d step=%d verify=%d head-load=%d track-update=%d DAM=%d side=%d E-delay=%d length=%d multiple=%d NR-R=%d R-NR=%d index=%d immediate=%d",
+		w->currentCommandType, w->stepRate, w->verifyFlag, w->headLoadFlag, w->trackUpdateFlag,
+		w->dataAddressMark, w->updateSSO, w->delay15ms, w->swapSectorLength, w->multipleRecords,
+		w->interruptNRtoR, w->interruptRtoNR, w->interruptIndexPulse, w->interruptImmediate);
 }
 
 void handleIndexPulse(JWD1797* w, double time) {
@@ -1665,7 +1633,7 @@ void assembleFormattedDiskArray(JWD1797* w, char* fileName) {
 			for(int i = 0; i < 512 * 3; i++) sectorPayloadDataBytes[i] = header[i];
 	}
 	if(!sectorPayloadDataBytes || !diskGeometry(w, sectorPayloadDataBytes, isCPMImage(fileName))) {
-		fprintf(stderr, "Cannot load floppy image: %s\n", fileName ? fileName : "(no disk)");
+		LOG_ERROR("Cannot load floppy image: %s\n", fileName ? fileName : "(no disk)");
 		free(sectorPayloadDataBytes); clearDiskImage(w);
 		return;
 	}
@@ -1679,7 +1647,7 @@ void assembleFormattedDiskArray(JWD1797* w, char* fileName) {
 		+ SECTOR_SIZE_LENGTH + CRC_LENGTH + GAP2_LENGTH + SYNC_LENGTH
 		+ DATA_AM_PREFIX_LENGTH + DATA_AM_LENGTH + w->sector_length
 		+ CRC_LENGTH + GAP3_LENGTH)) + GAP4B_LENGTH;
-	printf("%s%d\n", "Formatted bytes per track: ", w->actual_num_track_bytes);
+	LOG_DEBUG("%s%d\n", "Formatted bytes per track: ", w->actual_num_track_bytes);
 
 	/* calculate byte rotation time in ns (for a 300 rpm disk, one rotation takes
 		200,000,000 nanoseconds) */
@@ -1690,7 +1658,7 @@ void assembleFormattedDiskArray(JWD1797* w, char* fileName) {
 		This is because one cycle of the 5Mhz clock speed takes 0.2 microseconds. */
 	w->rotational_byte_read_limit = raw_rotational_byte_read_limit -
 		(raw_rotational_byte_read_limit%200);
-	printf("%s%d\n", "rotational byte read limit (ns): ", w->rotational_byte_read_limit);
+	LOG_DEBUG("%s%d\n", "rotational byte read limit (ns): ", w->rotational_byte_read_limit);
 
 	// now, get the total amount of bytes for the entire formatted disk
 	unsigned long formatted_disk_size = (w->cylinders * w->num_heads) * w->actual_num_track_bytes;
@@ -1786,7 +1754,7 @@ void assembleFormattedDiskArray(JWD1797* w, char* fileName) {
 						s_length_byte = 0x04;
 						break;
 					default:
-						printf("%s\n", "ERROR: Non-standard sector length!");
+						LOG_WARN("%s\n", "ERROR: Non-standard sector length!");
 				}
 				w->formattedDiskArray[formattedDiskIndexPointer] = s_length_byte;
 				formattedDiskIndexPointer++;
@@ -1887,7 +1855,7 @@ void handleVerifyHeadSettleDelay(JWD1797* w, double us) {
 int verifyIndexTimeout(JWD1797* w, int x) {
 	// check if X index holes have passed
 	if(w->verify_index_count >= x) {
-		printf("%s\n", "VERIFY INDEX TIMED OUT!");
+		LOG_DEBUG("%s\n", "VERIFY INDEX TIMED OUT!");
 		w->verify_operation_active = 0;
 		// command is done
 		w->command_done = 1;
@@ -1967,7 +1935,7 @@ int collectIDFieldData(JWD1797* w) {
 	0 otherwise. */
 int verifyTrackID(JWD1797* w) {
 	if(w->trackRegister == w->id_field_data[0]) {
-		printf("\n%s\n\n", "TRACK VERIFIED!!");
+		LOG_TRACE("\n%s\n\n", "TRACK VERIFIED!!");
 		return 1;
 	}
 	// track ID field != track register - keep searching
@@ -1987,7 +1955,7 @@ int verifyTrackID(JWD1797* w) {
 	0 otherwise. */
 int verifySectorID(JWD1797* w) {
 	if(w->sectorRegister == w->id_field_data[2]) {
-		printf("\n%s\n\n", "SECTOR VERIFIED!!");
+		LOG_TRACE("\n%s\n\n", "SECTOR VERIFIED!!");
 		return 1;
 	}
 	else {
@@ -2006,7 +1974,7 @@ int verifySectorID(JWD1797* w) {
 	0 otherwise. */
 int verifyHeadID(JWD1797* w) {
 	if(w->updateSSO == w->id_field_data[1]) {
-		printf("\n%s\n\n", "HEAD/SIDE VERIFIED!!");
+		LOG_TRACE("\n%s\n\n", "HEAD/SIDE VERIFIED!!");
 		return 1;
 	}
 	else {
@@ -2028,7 +1996,7 @@ int verifyHeadID(JWD1797* w) {
 int verifyCRC(JWD1797* w) {
 	// do the two CRC bytes equal the TEMP values of 0x01? (TEMP!!)
 	if(w->id_field_data[4] == 0x01 && w->id_field_data[5] == 0x01) {
-		printf("\n%s\n\n", "CRC VERIFIED!!");
+		LOG_TRACE("\n%s\n\n", "CRC VERIFIED!!");
 		// reset CRC error status
 		w->statusRegister &= 0b11110111;
 		w->verify_operation_active = 0;
@@ -2058,7 +2026,7 @@ int verifyCRC(JWD1797* w) {
 int verifyCRCTypeII(JWD1797* w) {
 	// do the two CRC bytes equal the TEMP values of 0x01? (TEMP!!)
 	if(w->id_field_data[4] == 0x01 && w->id_field_data[5] == 0x01) {
-		printf("\n%s\n\n", "CRC VERIFIED!!");
+		LOG_TRACE("\n%s\n\n", "CRC VERIFIED!!");
 		// reset CRC error status
 		w->statusRegister &= 0b11110111;
 		w->verify_operation_active = 0;
@@ -2156,17 +2124,18 @@ int typeIICmdIDVerify(JWD1797* w) {
 		}
 	}
 	if(w->id_field_data_collected) {
-		printf("id_field_data ");
-		printByteArray(w->id_field_data, 6);
+		LOG_TRACE("WD1797 ID: %02X %02X %02X %02X %02X %02X",
+			w->id_field_data[0], w->id_field_data[1], w->id_field_data[2],
+			w->id_field_data[3], w->id_field_data[4], w->id_field_data[5]);
 		int track_verified = verifyTrackID(w);
-		if(!track_verified) {printf("TRACK NOT VERIFIED\n");
-			printf("Track reg %d\n",w->trackRegister);
+		if(!track_verified) {LOG_TRACE("TRACK NOT VERIFIED\n");
+			LOG_TRACE("Track reg %d\n",w->trackRegister);
 return 0;
 		}
 		int sector_verified = verifySectorID(w);
-		if(!sector_verified) {printf("SECTOR NOT VERIFIED\n"); return 0;}
+		if(!sector_verified) {LOG_TRACE("SECTOR NOT VERIFIED\n"); return 0;}
 		int head_verified = verifyHeadID(w);
-		if(!head_verified) {printf("HEAD NOT VERIFIED\n"); 
+		if(!head_verified) {LOG_TRACE("HEAD NOT VERIFIED\n");
 return 0;
 		}
 		// extract sector length from ID Field
@@ -2174,7 +2143,7 @@ return 0;
 		// printf("%d\n", w->intSectorLength);
 		if(!verifyCRCTypeII(w)) 
 		{
-			printf("CRC NOT VERIFIED\n");
+			LOG_TRACE("CRC NOT VERIFIED\n");
 			return 0;
 		}
 		// ID data is valid..
@@ -2203,7 +2172,7 @@ int getSectorLengthFromID(JWD1797* w) {
 			return 2048;
 			break;
 		default:
-			printf("%s\n", "ERROR: Non-standard sector length!");
+			LOG_WARN("%s\n", "ERROR: Non-standard sector length!");
 	}
 }
 
@@ -2259,7 +2228,7 @@ int dataAddressMarkSearch(JWD1797* w) {
 
 static void writeSectorError(JWD1797* w, unsigned char status, const char* name) {
 	w->statusRegister |= status;
-	fprintf(stderr, "Cannot write floppy sector: %s\n", name ? name : "(no disk)");
+	LOG_ERROR("Cannot write floppy sector: %s\n", name ? name : "(no disk)");
 }
 
 void writeSector(JWD1797* w)
@@ -2338,37 +2307,12 @@ int pr8088_FD1797WaitStateCondition(unsigned char opCode, unsigned char port_num
 	return 0;
 }
 
-void fD1797DebugOutput(JWD1797* jwd1797) {
-	// DEBUG FD-1797 Floppy Disk Controller
-	printf("%s%lu\n", "JWD1797 ROTATIONAL BYTE POINTER: ",
-		jwd1797->rotational_byte_pointer);
-	printf("%s%d\n", "JWD1797 ROTATIONAL BYTE TIMER (ns): ",
-		jwd1797->rotational_byte_read_timer);
-	printf("%s%d\n", "JWD1797 ROTATIONAL BYTE TIMER OVR (ns): ",
-		jwd1797->rotational_byte_read_timer_OVR);
-	printf("%s%02X\n", "Current Byte: ", getFDiskByte(jwd1797));
-	printf("%s%f\n", "HEAD LOAD Timer: ", jwd1797->HLT_timer);
-	printf("%s%f\n", "E Delay Timer: ", jwd1797->e_delay_timer);
-	printf("%s", "FD-1797 Status Reg.: " );
-	print_bin8_representation(jwd1797->statusRegister);
-	printf("%s", "Disk ID Field Data: " );
-	printByteArray(jwd1797->id_field_data, 6);
-	printf("%s", "data a1 byte count: ");
-  printf("%d\n", jwd1797->data_a1_byte_counter);
-  printf("%s", "data AM search count: ");
-  printf("%d\n", jwd1797->data_mark_search_count);
-  printf("%s", "Data AM found: ");
-  printf("%d\n", jwd1797->data_mark_found);
-  printf("%s", "Sector length count: ");
-  printf("%d\n", jwd1797->intSectorLength);
-  printf("%s%d\n", "DRQ: ", jwd1797->drq);
-  printf("%s%02X\n", "DATA REGISTER: ", jwd1797->dataRegister);
-  printf("%s", "SECTOR REGISTER: ");
-  print_bin8_representation(jwd1797->sectorRegister);
-  printf("%s", "");
-  printf("%s", "TYPE II STATUS REGISTER: ");
-  print_bin8_representation(jwd1797->statusRegister);
-  printf("%s\n", "");
+void fD1797DebugOutput(JWD1797* w) {
+	LOG_TRACE("WD1797 rotation: byte=%lu timer=%u overage=%u current=%02X HLD=%f E-delay=%f ID-bytes=%d",
+		w->rotational_byte_pointer, w->rotational_byte_read_timer, w->rotational_byte_read_timer_OVR,
+		getFDiskByte(w), w->HLD_idle_reset_timer, w->e_delay_timer, w->id_field_data_array_pt);
+	printAllRegisters(w);
+	printCommandFlags(w);
 }
 
 //OS patches

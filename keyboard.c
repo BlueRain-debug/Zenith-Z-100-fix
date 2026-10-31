@@ -19,19 +19,20 @@
 #include <pthread.h>
 
 #include "mainboard.h"
+#include "log.h"
 
 void scheduleTrap(int,int);
 pthread_mutex_t fifo_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void doclick()
 {
-	printf("key click\n");
+	LOG_TRACE("key click\n");
 	beep(10);
 }
 
 void dobeep()
 {
-	printf("beep\n");
+	LOG_TRACE("beep\n");
 	beep(200);
 	// ring system bell with "BELL" character
 	// printf("\a");
@@ -134,7 +135,7 @@ static void enqueueKey(Keyboard* k, unsigned int code)
 void keyaction(Keyboard* k, int code)
 {
 	code=code&0xff;
-	printf("Incoming code from GdkEventKey to kb device buffer: %x\n", code);
+	LOG_TRACE("Incoming code from GdkEventKey to kb device buffer: %x\n", code);
 // handle UP key press
 if(code == 0xa5){
 //substitute ctrl-k
